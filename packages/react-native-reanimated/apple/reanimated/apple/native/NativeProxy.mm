@@ -97,6 +97,9 @@ void commonInit(REAModule *reaModule, std::shared_ptr<ReanimatedModuleProxy> rea
     jsi::Runtime &uiRuntime = reanimatedModuleProxy->getUIRuntime();
     jsi::Value payload = convertObjCObjectToJSIValue(uiRuntime, eventData);
     double currentTime = CACurrentMediaTime() * 1000;
+
+    NSLog(@"htht - event handled");
+
     reanimatedModuleProxy->handleEvent(eventName, emitterReactTag, payload, currentTime);
   }];
 
