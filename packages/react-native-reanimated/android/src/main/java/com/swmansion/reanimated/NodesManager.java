@@ -115,6 +115,7 @@ public class NodesManager implements EventDispatcherListener {
   private final GuardedFrameCallback mChoreographerCallback;
   protected final UIManagerModule.CustomEventNamesResolver mCustomEventNamesResolver;
   private final AtomicBoolean mCallbackPosted = new AtomicBoolean();
+  private final AtomicBoolean mIsHostPaused = new AtomicBoolean();
   private final ReactContext mContext;
   private final UIManager mUIManager;
   private RCTEventEmitter mCustomEventHandler = new NoopEventHandler();
@@ -234,6 +235,7 @@ public class NodesManager implements EventDispatcherListener {
   }
 
   public void onHostPause() {
+    mIsHostPaused.set(true);
     if (mCallbackPosted.get()) {
       stopUpdatingOnAnimationFrame();
       mCallbackPosted.set(true);
@@ -245,13 +247,27 @@ public class NodesManager implements EventDispatcherListener {
   }
 
   public void onHostResume() {
+    mIsHostPaused.set(false);
     if (mCallbackPosted.getAndSet(false)) {
       startUpdatingOnAnimationFrame();
     }
   }
 
   public void startUpdatingOnAnimationFrame() {
-    if (!mCallbackPosted.getAndSet(true)) {
+    /**
+     * Discord stuff: While we're paused, the update should not run.
+     *
+     * While the app is paused (e.g. we just opened a permission dialog), Fabric may not mount views onto the screen.
+     * This means that if we are trying to animate the view (e.g. the Voice Panel, while the Mic permission is open),
+     * the update will fail. This can cause the view to remain stuck forever. We simply skip the runs, until we resume.
+     *
+     * (We actually throw some RetryableMountingLayerException in these cases in the logs).
+     *
+     * Also, just for clarity, `mIsHostPaused` is purposely checked after the get-and-set so that
+     * `onHostResume` will properly re-trigger this again if `startUpdatingOnAnimationFrame`
+     * was called during the pause.
+     */
+    if (!mCallbackPosted.getAndSet(true) && !mIsHostPaused.get()) {
       mReactChoreographer.postFrameCallback(
           ReactChoreographer.CallbackType.NATIVE_ANIMATED_MODULE, mChoreographerCallback);
     }
